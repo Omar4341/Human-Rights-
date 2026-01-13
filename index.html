@@ -279,6 +279,67 @@
             font-size: 1em;
         }
     }
+
+    /* Translation toggle button styles */
+    .translate-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 5px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        margin-left: 10px;
+        vertical-align: middle;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        transition: all 0.3s ease;
+    }
+    
+    .translate-btn:hover {
+        background-color: #45a049;
+        transform: scale(1.05);
+    }
+    
+    .arabic-text {
+        display: none;
+        margin-top: 5px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-right: 3px solid #4CAF50;
+        text-align: right;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        border-radius: 5px;
+        direction: rtl;
+    }
+    
+    .english-text {
+        display: block;
+    }
+    
+    .question-content-wrapper {
+        display: inline-block;
+        width: calc(100% - 120px);
+        vertical-align: middle;
+    }
+    
+    .question-header-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    
+    .option-content-wrapper {
+        display: inline-block;
+        width: calc(100% - 40px);
+        vertical-align: top;
+    }
+    
+    .option-wrapper {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
 </style>
 </head>
 <body>
@@ -4938,11 +4999,22 @@
         },
     ];
 
+    // Combine English and Arabic questions - English as default
+    const combinedQuestions = questionsEn.map((enQ, index) => {
+        const arQ = questions[index];
+        return {
+            ...enQ,
+            question_ar: arQ?.question || enQ.question,
+            options_ar: arQ?.options || enQ.options,
+            category_ar: arQ?.category || enQ.category
+        };
+    });
+
     let answeredQuestions = {};
-    let currentLanguage = "ar"; // "ar" or "en"
+    let currentLanguage = "en"; // Default to English
 
     function getCurrentQuestions() {
-        return currentLanguage === "ar" ? questions : questionsEn;
+        return combinedQuestions;
     }
 
     function filterByType(type) {
@@ -4982,15 +5054,18 @@
     }
 
     function initializeApp() {
+        document.getElementById("totalQuestions").textContent = combinedQuestions.length;
         updateStats();
         filterByType('all');
     }
 
     function filterQuestions() {
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-        const filtered = questions.filter(q => 
+        const filtered = combinedQuestions.filter(q => 
             q.question.toLowerCase().includes(searchTerm) || 
-            q.options.some(opt => opt.toLowerCase().includes(searchTerm))
+            q.options.some(opt => opt.toLowerCase().includes(searchTerm)) ||
+            (q.question_ar && q.question_ar.toLowerCase().includes(searchTerm)) ||
+            (q.options_ar && q.options_ar.some(opt => opt.toLowerCase().includes(searchTerm)))
         );
         displayQuestions(filtered);
     }
@@ -4999,44 +5074,55 @@
         const container = document.getElementById("questionsContainer");
         
         if (questionsToShow.length === 0) {
-            container.innerHTML = '<div class="empty-state">' + 
-                (currentLanguage === 'ar' ? 'لم يتم العثور على أسئلة' : 'No questions found') + 
-                '</div>';
+            container.innerHTML = '<div class="empty-state">No questions found</div>';
             return;
         }
 
         container.innerHTML = questionsToShow.map(q => {
             const isTrueFalse = q.options.length === 2 && 
-                ((q.options[0] === 'صحيح' && q.options[1] === 'خطأ') || 
-                 (q.options[0] === 'True' && q.options[1] === 'False'));
+                ((q.options[0] === 'True' && q.options[1] === 'False') ||
+                 (q.options[0] === 'صحيح' && q.options[1] === 'خطأ'));
             
             return `
-                <div class="question-container">
-                    <div class="question-number">
-                        ${currentLanguage === 'ar' ? 'السؤال' : 'Question'} ${q.id}
-                        <span style="font-size: 0.8em; opacity: 0.7; margin-right: 10px;">
-                            (${isTrueFalse ? 
-                                (currentLanguage === 'ar' ? 'صح/خطأ' : 'True/False') : 
-                                (currentLanguage === 'ar' ? 'اختيار من متعدد' : 'Multiple Choice')})
-                        </span>
+                <div class="question-container" data-question-id="${q.id}">
+                    <div class="question-header-wrapper">
+                        <div class="question-number">
+                            Question ${q.id}
+                            <span style="font-size: 0.8em; opacity: 0.7; margin-left: 10px;">
+                                (${isTrueFalse ? 'True/False' : 'Multiple Choice'})
+                            </span>
+                        </div>
+                        <button class="translate-btn" onclick="toggleTranslation('category', ${q.id})">عربي</button>
                     </div>
-                    <div class="question-text">${q.question}</div>
+                    <div class="question-text">
+                        <div class="question-content-wrapper">
+                            <div class="english-text">${q.question}</div>
+                            <div class="arabic-text" style="display:none">${q.question_ar || q.question}</div>
+                        </div>
+                        <button class="translate-btn" onclick="toggleTranslation('question', ${q.id})">عربي</button>
+                    </div>
                     <div class="options">
                         ${q.options.map((option, index) => `
                             <div class="option ${answeredQuestions[q.id] !== undefined ? 
                                 (index === q.correct ? 'correct' : 
                                 (answeredQuestions[q.id] === index ? 'incorrect' : '')) : ''}" 
                                  onclick="selectAnswer(${q.id}, ${index}, ${q.correct})">
-                                <span class="option-label">${String.fromCharCode(65 + index)})</span>
-                                ${option}
+                                <div class="option-wrapper">
+                                    <span class="option-label">${String.fromCharCode(65 + index)})</span>
+                                    <div class="option-content-wrapper">
+                                        <div class="english-text">${option}</div>
+                                        <div class="arabic-text" style="display:none">${q.options_ar?.[index] || option}</div>
+                                    </div>
+                                </div>
                             </div>
                         `).join("")}
+                        <button class="translate-btn" onclick="toggleTranslation('options', ${q.id})" style="margin-top: 10px;">عربي</button>
                     </div>
                     ${answeredQuestions[q.id] !== undefined ? `
                         <div class="answer-status show ${answeredQuestions[q.id] === q.correct ? 'correct' : 'incorrect'}">
                             ${answeredQuestions[q.id] === q.correct ? 
-                                (currentLanguage === 'ar' ? '✓ إجابة صحيحة!' : '✓ Correct!') : 
-                                (currentLanguage === 'ar' ? '✗ إجابة خاطئة - الإجابة الصحيحة هي: ' : '✗ Incorrect - The correct answer is: ') + q.options[q.correct]}
+                                '✓ Correct!' : 
+                                '✗ Incorrect - The correct answer is: ' + q.options[q.correct]}
                         </div>
                     ` : ''}
                 </div>
@@ -5052,8 +5138,80 @@
         }
     }
 
+    function toggleTranslation(type, questionId) {
+        const questionContainer = document.querySelector(`[data-question-id="${questionId}"]`);
+        if (!questionContainer) return;
+
+        if (type === 'category') {
+            const categoryElement = questionContainer.querySelector('.question-number');
+            const btn = questionContainer.querySelector('.question-header-wrapper .translate-btn');
+            
+            if (btn && btn.textContent.trim() === 'عربي') {
+                // Show Arabic category
+                const q = combinedQuestions.find(x => x.id === questionId);
+                if (q) {
+                    categoryElement.innerHTML = `
+                        ${q.category_ar || q.category}
+                        <span style="font-size: 0.8em; opacity: 0.7; margin-left: 10px;">
+                            (${q.options.length === 2 && ((q.options[0] === 'True' && q.options[1] === 'False') || (q.options[0] === 'صحيح' && q.options[1] === 'خطأ')) ? 'صح/خطأ' : 'اختيار من متعدد'})
+                        </span>
+                    `;
+                    btn.textContent = 'English';
+                }
+            } else {
+                // Show English category
+                const q = combinedQuestions.find(x => x.id === questionId);
+                if (q) {
+                    categoryElement.innerHTML = `
+                        Question ${q.id}
+                        <span style="font-size: 0.8em; opacity: 0.7; margin-left: 10px;">
+                            (${q.options.length === 2 && ((q.options[0] === 'True' && q.options[1] === 'False') || (q.options[0] === 'صحيح' && q.options[1] === 'خطأ')) ? 'True/False' : 'Multiple Choice'})
+                        </span>
+                    `;
+                    btn.textContent = 'عربي';
+                }
+            }
+        } else if (type === 'question') {
+            const questionElement = questionContainer.querySelector('.question-content-wrapper');
+            const englishText = questionElement.querySelector('.english-text');
+            const arabicText = questionElement.querySelector('.arabic-text');
+            const btn = questionContainer.querySelector('.question-text .translate-btn');
+            
+            if (btn && btn.textContent.trim() === 'عربي') {
+                englishText.style.display = 'none';
+                arabicText.style.display = 'block';
+                btn.textContent = 'English';
+            } else {
+                englishText.style.display = 'block';
+                arabicText.style.display = 'none';
+                btn.textContent = 'عربي';
+            }
+        } else if (type === 'options') {
+            const optionElements = questionContainer.querySelectorAll('.option-content-wrapper');
+            const btn = questionContainer.querySelector('.options .translate-btn:last-child');
+            const showArabic = btn && btn.textContent.trim() === 'عربي';
+            
+            optionElements.forEach(option => {
+                const englishText = option.querySelector('.english-text');
+                const arabicText = option.querySelector('.arabic-text');
+                
+                if (showArabic) {
+                    englishText.style.display = 'none';
+                    arabicText.style.display = 'block';
+                } else {
+                    englishText.style.display = 'block';
+                    arabicText.style.display = 'none';
+                }
+            });
+            
+            if (btn) {
+                btn.textContent = showArabic ? 'English' : 'عربي';
+            }
+        }
+    }
+
     function updateStats() {
-        const correct = Object.keys(answeredQuestions).filter(q => answeredQuestions[q] === questions.find(x => x.id == q).correct).length;
+        const correct = Object.keys(answeredQuestions).filter(q => answeredQuestions[q] === combinedQuestions.find(x => x.id == q).correct).length;
         const percentage = Math.round((correct / Object.keys(answeredQuestions).length) * 100) || 0;
         document.getElementById("correctCount").textContent = correct;
         document.getElementById("percentage").textContent = percentage + "%";
