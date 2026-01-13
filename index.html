@@ -370,6 +370,7 @@
             <button class="btn btn-type" data-type="all" onclick="filterByType('all')" style="background: #4CAF50; color: white;">الكل</button>
             <button class="btn btn-type" data-type="multiple" onclick="filterByType('multiple')">أسئلة اختيار من متعدد</button>
             <button class="btn btn-type" data-type="truefalse" onclick="filterByType('truefalse')">أسئلة صح/خطأ</button>
+            <button class="btn btn-secondary" onclick="scrollToSummary()">ملخص</button>
         </div>
     </div>
 
@@ -377,9 +378,9 @@
         <input type="text" id="searchInput" placeholder="ابحث عن سؤال..." onkeyup="filterQuestions()">
     </div>
 
-    <div id="questionsContainer"></div>
+   <div id="questionsContainer"></div>
 
-    <div class="question-container" style="margin-top: 30px;">
+    <div id="summary-section" class="question-container" style="margin-top: 30px;">
         <div class="question-number">Quick Summary: Key Dates</div>
         <div class="question-text">Important dates related to the development of human rights and international documents:</div>
         <div class="options">
@@ -4998,9 +4999,7 @@
             correct: 1
         },
     ];
-
-    // Combine English and Arabic questions - English as default
-    const combinedQuestions = questionsEn.map((enQ, index) => {
+const combinedQuestions = questionsEn.map((enQ, index) => {
         const arQ = questions[index];
         return {
             ...enQ,
@@ -5011,7 +5010,7 @@
     });
 
     let answeredQuestions = {};
-    let currentLanguage = "en"; // Default to English
+    let currentLanguage = "en";
 
     function getCurrentQuestions() {
         return combinedQuestions;
@@ -5037,7 +5036,6 @@
             );
         }
         
-        // Update active button styling
         document.querySelectorAll('.btn-type').forEach(btn => {
             if (btn.dataset.type === type) {
                 btn.classList.add('active');
@@ -5070,6 +5068,13 @@
         displayQuestions(filtered);
     }
 
+    function scrollToSummary() {
+        const summarySection = document.getElementById('summary-section');
+        if (summarySection) {
+            summarySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
     function displayQuestions(questionsToShow) {
         const container = document.getElementById("questionsContainer");
         
@@ -5092,14 +5097,12 @@
                                 (${isTrueFalse ? 'True/False' : 'Multiple Choice'})
                             </span>
                         </div>
-                        <button class="translate-btn" onclick="toggleTranslation('category', ${q.id})">عربي</button>
+                        <button class="translate-btn" onclick="toggleTranslation('question', ${q.id})">عربي</button>
                     </div>
                     <div class="question-text">
                         <div class="question-content-wrapper">
-                            <div class="english-text">${q.question}</div>
-                            <div class="arabic-text" style="display:none">${q.question_ar || q.question}</div>
+                            ${q.question}
                         </div>
-                        <button class="translate-btn" onclick="toggleTranslation('question', ${q.id})">عربي</button>
                     </div>
                     <div class="options">
                         ${q.options.map((option, index) => `
@@ -5110,13 +5113,11 @@
                                 <div class="option-wrapper">
                                     <span class="option-label">${String.fromCharCode(65 + index)})</span>
                                     <div class="option-content-wrapper">
-                                        <div class="english-text">${option}</div>
-                                        <div class="arabic-text" style="display:none">${q.options_ar?.[index] || option}</div>
+                                        ${option}
                                     </div>
                                 </div>
                             </div>
                         `).join("")}
-                        <button class="translate-btn" onclick="toggleTranslation('options', ${q.id})" style="margin-top: 10px;">عربي</button>
                     </div>
                     ${answeredQuestions[q.id] !== undefined ? `
                         <div class="answer-status show ${answeredQuestions[q.id] === q.correct ? 'correct' : 'incorrect'}">
@@ -5134,7 +5135,28 @@
         if (answeredQuestions[questionId] === undefined) {
             answeredQuestions[questionId] = selectedIndex;
             updateStats();
-            displayQuestions(getCurrentQuestions());
+            const container = document.querySelector(`[data-question-id="${questionId}"]`);
+            if (container) {
+                const options = container.querySelectorAll('.option');
+                options.forEach((opt, idx) => {
+                    if (idx === correctIndex) {
+                        opt.classList.add('correct');
+                    } else if (idx === selectedIndex) {
+                        opt.classList.add('incorrect');
+                    }
+                });
+                
+                const q = combinedQuestions.find(x => x.id === questionId);
+                const statusDiv = container.querySelector('.answer-status') || document.createElement('div');
+                statusDiv.className = `answer-status show ${selectedIndex === correctIndex ? 'correct' : 'incorrect'}`;
+                statusDiv.textContent = selectedIndex === correctIndex ? 
+                    '✓ Correct!' : 
+                    '✗ Incorrect - The correct answer is: ' + q.options[correctIndex];
+                
+                if (!container.querySelector('.answer-status')) {
+                    container.appendChild(statusDiv);
+                }
+            }
         }
     }
 
@@ -5142,71 +5164,43 @@
         const questionContainer = document.querySelector(`[data-question-id="${questionId}"]`);
         if (!questionContainer) return;
 
-        if (type === 'category') {
-            const categoryElement = questionContainer.querySelector('.question-number');
-            const btn = questionContainer.querySelector('.question-header-wrapper .translate-btn');
-            
-            if (btn && btn.textContent.trim() === 'عربي') {
-                // Show Arabic category
-                const q = combinedQuestions.find(x => x.id === questionId);
-                if (q) {
-                    categoryElement.innerHTML = `
-                        ${q.category_ar || q.category}
-                        <span style="font-size: 0.8em; opacity: 0.7; margin-left: 10px;">
-                            (${q.options.length === 2 && ((q.options[0] === 'True' && q.options[1] === 'False') || (q.options[0] === 'صحيح' && q.options[1] === 'خطأ')) ? 'صح/خطأ' : 'اختيار من متعدد'})
-                        </span>
-                    `;
-                    btn.textContent = 'English';
-                }
-            } else {
-                // Show English category
-                const q = combinedQuestions.find(x => x.id === questionId);
-                if (q) {
-                    categoryElement.innerHTML = `
-                        Question ${q.id}
-                        <span style="font-size: 0.8em; opacity: 0.7; margin-left: 10px;">
-                            (${q.options.length === 2 && ((q.options[0] === 'True' && q.options[1] === 'False') || (q.options[0] === 'صحيح' && q.options[1] === 'خطأ')) ? 'True/False' : 'Multiple Choice'})
-                        </span>
-                    `;
-                    btn.textContent = 'عربي';
-                }
-            }
-        } else if (type === 'question') {
-            const questionElement = questionContainer.querySelector('.question-content-wrapper');
-            const englishText = questionElement.querySelector('.english-text');
-            const arabicText = questionElement.querySelector('.arabic-text');
-            const btn = questionContainer.querySelector('.question-text .translate-btn');
-            
-            if (btn && btn.textContent.trim() === 'عربي') {
-                englishText.style.display = 'none';
-                arabicText.style.display = 'block';
-                btn.textContent = 'English';
-            } else {
-                englishText.style.display = 'block';
-                arabicText.style.display = 'none';
-                btn.textContent = 'عربي';
-            }
-        } else if (type === 'options') {
-            const optionElements = questionContainer.querySelectorAll('.option-content-wrapper');
-            const btn = questionContainer.querySelector('.options .translate-btn:last-child');
-            const showArabic = btn && btn.textContent.trim() === 'عربي';
-            
-            optionElements.forEach(option => {
-                const englishText = option.querySelector('.english-text');
-                const arabicText = option.querySelector('.arabic-text');
-                
-                if (showArabic) {
-                    englishText.style.display = 'none';
-                    arabicText.style.display = 'block';
-                } else {
-                    englishText.style.display = 'block';
-                    arabicText.style.display = 'none';
-                }
-            });
-            
-            if (btn) {
-                btn.textContent = showArabic ? 'English' : 'عربي';
-            }
+        const q = combinedQuestions.find(x => x.id === questionId);
+        if (!q) return;
+
+        const btn = questionContainer.querySelector('.translate-btn');
+        const isCurrentlyArabic = btn && btn.textContent.trim() === 'English';
+
+        const isTrueFalse = q.options.length === 2 && 
+            ((q.options[0] === 'True' && q.options[1] === 'False') ||
+             (q.options[0] === 'صحيح' && q.options[1] === 'خطأ'));
+
+        const questionNumber = questionContainer.querySelector('.question-number');
+        questionNumber.innerHTML = `
+            ${isCurrentlyArabic ? 'Question' : 'سؤال'} ${q.id}
+            <span style="font-size: 0.8em; opacity: 0.7; margin-left: 10px;">
+                (${isTrueFalse ? (isCurrentlyArabic ? 'True/False' : 'صح/خطأ') : (isCurrentlyArabic ? 'Multiple Choice' : 'اختيار من متعدد')})
+            </span>
+        `;
+
+        const questionText = questionContainer.querySelector('.question-content-wrapper');
+        questionText.textContent = isCurrentlyArabic ? q.question : (q.question_ar || q.question);
+
+        const optionElements = questionContainer.querySelectorAll('.option-content-wrapper');
+        optionElements.forEach((optionEl, index) => {
+            optionEl.textContent = isCurrentlyArabic ? q.options[index] : (q.options_ar?.[index] || q.options[index]);
+        });
+
+        const answerStatus = questionContainer.querySelector('.answer-status');
+        if (answerStatus && answeredQuestions[q.id] !== undefined) {
+            const isCorrect = answeredQuestions[q.id] === q.correct;
+            const correctAnswer = isCurrentlyArabic ? q.options[q.correct] : (q.options_ar?.[q.correct] || q.options[q.correct]);
+            answerStatus.textContent = isCorrect ? 
+                (isCurrentlyArabic ? '✓ Correct!' : '✓ صحيح!') : 
+                (isCurrentlyArabic ? '✗ Incorrect - The correct answer is: ' : '✗ خطأ - الإجابة الصحيحة هي: ') + correctAnswer;
+        }
+
+        if (btn) {
+            btn.textContent = isCurrentlyArabic ? 'عربي' : 'English';
         }
     }
 
@@ -5220,17 +5214,6 @@
     function showAllQuestions() {
         document.getElementById("searchInput").value = "";
         displayQuestions(getCurrentQuestions());
-    }
-
-    function toggleLanguage() {
-        currentLanguage = currentLanguage === "ar" ? "en" : "ar";
-        const btn = document.getElementById("langToggle");
-        if (btn) {
-            btn.textContent = currentLanguage === "ar" ? "English" : "عربي";
-        }
-        // Reapply the current filter with the new language
-        const activeFilter = document.querySelector('.btn-type[style*="background"]')?.dataset.type || 'all';
-        filterByType(activeFilter);
     }
 
     function resetAll() {
