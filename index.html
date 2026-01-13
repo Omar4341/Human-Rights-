@@ -284,8 +284,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏛️ اختبارات حقوق الإنسان</h1>
-            <p>100 سؤال متعدد الخيارات لفهم حقوق الإنسان العالمية</p>
+            <h1>Human Rights Revision 🏛️ </h1>
         </div>
     <div class="stats">
         <div class="stats-item">
@@ -303,9 +302,14 @@
     </div>
 
     <div class="controls">
-        <button class="btn btn-primary" onclick="showAllQuestions()">عرض جميع الأسئلة</button>
-        <button class="btn btn-secondary" onclick="resetAll()">إعادة تعيين</button>
+        <button class="btn btn-primary" onclick="showAllQuestions()">عرض كل الأسئلة</button>
         <button class="btn btn-secondary" id="langToggle" onclick="toggleLanguage()">English</button>
+        <button class="btn btn-secondary" onclick="resetAll()">إعادة تعيين</button>
+        <div class="filter-buttons" style="margin-top: 10px; width: 100%; text-align: center;">
+            <button class="btn btn-type" data-type="all" onclick="filterByType('all')" style="background: #4CAF50; color: white;">الكل</button>
+            <button class="btn btn-type" data-type="multiple" onclick="filterByType('multiple')">أسئلة اختيار من متعدد</button>
+            <button class="btn btn-type" data-type="truefalse" onclick="filterByType('truefalse')">أسئلة صح/خطأ</button>
+        </div>
     </div>
 
     <div class="search-box">
@@ -4906,8 +4910,45 @@
         return currentLanguage === "ar" ? questions : questionsEn;
     }
 
+    function filterByType(type) {
+        const allQuestions = getCurrentQuestions();
+        let filteredQuestions = [];
+        
+        if (type === 'all') {
+            filteredQuestions = allQuestions;
+        } else if (type === 'truefalse') {
+            filteredQuestions = allQuestions.filter(q => 
+                q.options.length === 2 && 
+                ((q.options[0] === 'صحيح' && q.options[1] === 'خطأ') || 
+                 (q.options[0] === 'True' && q.options[1] === 'False'))
+            );
+        } else if (type === 'multiple') {
+            filteredQuestions = allQuestions.filter(q => 
+                q.options.length > 2 || 
+                !((q.options[0] === 'صحيح' && q.options[1] === 'خطأ') || 
+                  (q.options[0] === 'True' && q.options[1] === 'False'))
+            );
+        }
+        
+        // Update active button styling
+        document.querySelectorAll('.btn-type').forEach(btn => {
+            if (btn.dataset.type === type) {
+                btn.classList.add('active');
+                btn.style.background = '#4CAF50';
+                btn.style.color = 'white';
+            } else {
+                btn.classList.remove('active');
+                btn.style.background = '';
+                btn.style.color = '';
+            }
+        });
+        
+        displayQuestions(filteredQuestions);
+    }
+
     function initializeApp() {
-        displayQuestions(getCurrentQuestions());
+        updateStats();
+        filterByType('all');
     }
 
     function filterQuestions() {
@@ -4923,30 +4964,49 @@
         const container = document.getElementById("questionsContainer");
         
         if (questionsToShow.length === 0) {
-            container.innerHTML = '<div class="empty-state">لم يتم العثور على أسئلة</div>';
+            container.innerHTML = '<div class="empty-state">' + 
+                (currentLanguage === 'ar' ? 'لم يتم العثور على أسئلة' : 'No questions found') + 
+                '</div>';
             return;
         }
 
-        container.innerHTML = questionsToShow.map(q => `
-            <div class="question-container">
-                <div class="question-number">السؤال ${q.id}</div>
-                <div class="question-text">${q.question}</div>
-                <div class="options">
-                    ${q.options.map((option, index) => `
-                        <div class="option ${answeredQuestions[q.id] !== undefined ? (index === q.correct ? 'correct' : (answeredQuestions[q.id] === index ? 'incorrect' : '')) : ''}" 
-                             onclick="selectAnswer(${q.id}, ${index}, ${q.correct})">
-                            <span class="option-label">${String.fromCharCode(65 + index)})</span>
-                            ${option}
-                        </div>
-                    `).join("")}
-                </div>
-                ${answeredQuestions[q.id] !== undefined ? `
-                    <div class="answer-status show ${answeredQuestions[q.id] === q.correct ? 'correct' : 'incorrect'}">
-                        ${answeredQuestions[q.id] === q.correct ? '✓ إجابة صحيحة!' : '✗ إجابة خاطئة - الإجابة الصحيحة هي: ' + q.options[q.correct]}
+        container.innerHTML = questionsToShow.map(q => {
+            const isTrueFalse = q.options.length === 2 && 
+                ((q.options[0] === 'صحيح' && q.options[1] === 'خطأ') || 
+                 (q.options[0] === 'True' && q.options[1] === 'False'));
+            
+            return `
+                <div class="question-container">
+                    <div class="question-number">
+                        ${currentLanguage === 'ar' ? 'السؤال' : 'Question'} ${q.id}
+                        <span style="font-size: 0.8em; opacity: 0.7; margin-right: 10px;">
+                            (${isTrueFalse ? 
+                                (currentLanguage === 'ar' ? 'صح/خطأ' : 'True/False') : 
+                                (currentLanguage === 'ar' ? 'اختيار من متعدد' : 'Multiple Choice')})
+                        </span>
                     </div>
-                ` : ''}
-            </div>
-        `).join("");
+                    <div class="question-text">${q.question}</div>
+                    <div class="options">
+                        ${q.options.map((option, index) => `
+                            <div class="option ${answeredQuestions[q.id] !== undefined ? 
+                                (index === q.correct ? 'correct' : 
+                                (answeredQuestions[q.id] === index ? 'incorrect' : '')) : ''}" 
+                                 onclick="selectAnswer(${q.id}, ${index}, ${q.correct})">
+                                <span class="option-label">${String.fromCharCode(65 + index)})</span>
+                                ${option}
+                            </div>
+                        `).join("")}
+                    </div>
+                    ${answeredQuestions[q.id] !== undefined ? `
+                        <div class="answer-status show ${answeredQuestions[q.id] === q.correct ? 'correct' : 'incorrect'}">
+                            ${answeredQuestions[q.id] === q.correct ? 
+                                (currentLanguage === 'ar' ? '✓ إجابة صحيحة!' : '✓ Correct!') : 
+                                (currentLanguage === 'ar' ? '✗ إجابة خاطئة - الإجابة الصحيحة هي: ' : '✗ Incorrect - The correct answer is: ') + q.options[q.correct]}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join("");
     }
 
     function selectAnswer(questionId, selectedIndex, correctIndex) {
@@ -4971,13 +5031,13 @@
 
     function toggleLanguage() {
         currentLanguage = currentLanguage === "ar" ? "en" : "ar";
-
         const btn = document.getElementById("langToggle");
         if (btn) {
             btn.textContent = currentLanguage === "ar" ? "English" : "عربي";
         }
-
-        displayQuestions(getCurrentQuestions());
+        // Reapply the current filter with the new language
+        const activeFilter = document.querySelector('.btn-type[style*="background"]')?.dataset.type || 'all';
+        filterByType(activeFilter);
     }
 
     function resetAll() {
@@ -4990,5 +5050,8 @@
 
     initializeApp();
 </script>
+<footer style="text-align: center; margin: 20px 0; color: #666; font-size: 14px;">
+    &copy; 2026 By Team AO Nexus
+</footer>
 </body>
 </html>
